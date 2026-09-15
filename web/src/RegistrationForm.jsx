@@ -1,10 +1,6 @@
 import { useState, useEffect } from "react";
 import { createVisitor, searchVisitors, getHosts } from "./api";
-
-const initialForm = { full_name: "", company_name: "", host_id: "", purpose: "" };
-
-// Allows letters + spaces + optional apostrophe/dash.
-const FULL_NAME_REGEX = /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/;
+import {initialForm, FULL_NAME_REGEX } from "./constants/registrationConstant";
 
 export default function RegistrationForm({ onRegistered, onError }) {
   const [form, setForm] = useState(initialForm);
@@ -13,9 +9,7 @@ export default function RegistrationForm({ onRegistered, onError }) {
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    getHosts().then((data) => {
-      if (data) setHosts(data);
-    });
+    getHosts().then((data) => { if (data) setHosts(data); });
   }, []);
 
   function validateField(name, value) {
@@ -23,7 +17,6 @@ export default function RegistrationForm({ onRegistered, onError }) {
       const v = value.trim();
       if (!v) return "Full Name is required.";
       if (!FULL_NAME_REGEX.test(v)) return "Full Name can contain only letters.";
-      if (v.length < 2) return "Full Name must be at least 2 characters.";
       return "";
     }
 
@@ -59,16 +52,10 @@ export default function RegistrationForm({ onRegistered, onError }) {
       [name]: validateField(name, value),
     }));
 
-    if (name === "full_name") {
-      const trimmed = value.trim();
-
-      if (trimmed.length >= 2 && FULL_NAME_REGEX.test(trimmed)) {
-        searchVisitors(trimmed).then((data) => {
-          if (data) setSuggestions(data);
-        });
-      } else {
-        setSuggestions([]);
-      }
+   if (name === "full_name" && value.length >= 2) {
+      searchVisitors(value).then((data) => { if (data) setSuggestions(data); });
+    } else if (name === "full_name") {
+      setSuggestions([]);
     }
   }
 
@@ -96,44 +83,31 @@ export default function RegistrationForm({ onRegistered, onError }) {
     setSuggestions([]);
   }
 
- async function handleSubmit(e) {
-  e.preventDefault();
+  async function handleSubmit(e) {
+    e.preventDefault();
 
-  const nextErrors = validateForm(form);
-  setErrors(nextErrors);
-
-  if (Object.keys(nextErrors).length > 0) {
-    const firstField = Object.keys(nextErrors)[0];
-    const el = document.querySelector(`[name="${firstField}"]`);
-    if (el) el.focus();
-    return;
-  }
-
-  try {
+    const nextErrors = validateForm(form);
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
     await createVisitor({ ...form, host_id: form.host_id || null });
-
     setForm(initialForm);
     setSuggestions([]);
     setErrors({});
     onRegistered();
-  } catch (err) {
-    // ✅ show error toast if API fails
-    onError?.("Registration failed. Please try again.");
   }
-}
-
-  /* ---------- UI ONLY BELOW ---------- */
 
   return (
     <div style={styles.card} id="register">
       <div style={styles.cardHead}>
         <span>👤</span>
-        <h3 style={styles.cardTitle}>Register a Visitor</h3>
+        <h3 style={styles.cardTitle}>Register  Visitor</h3>
       </div>
 
       <form onSubmit={handleSubmit} noValidate>
         <div style={styles.grid}>
-          {/* Full Name */}
+          {/* Full Name*/}
           <div style={styles.field}>
             <label style={styles.label}>
               Full Name <span style={styles.req}>*</span>
@@ -142,7 +116,10 @@ export default function RegistrationForm({ onRegistered, onError }) {
               name="full_name"
               value={form.full_name}
               onChange={handleChange}
-              onBlur={handleBlur}
+              onBlur={(e) => {
+                handleBlur(e);
+                setSuggestions([]);
+              }}
               required
               autoComplete="off"
               placeholder="Enter visitor's full name"
@@ -193,15 +170,13 @@ export default function RegistrationForm({ onRegistered, onError }) {
             >
               <option value="">Select host…</option>
               {hosts.map((h) => (
-                <option key={h.id} value={h.id}>
-                  {h.name}
-                </option>
+                <option key={h.id} value={h.id}>{h.name}</option>
               ))}
             </select>
             {errors.host_id && <div style={styles.errorText}>{errors.host_id}</div>}
           </div>
 
-          {/* Purpose (full width, like "Additional Note" in the design) */}
+          {/* Purpose */}
           <div style={{ ...styles.field, ...styles.fullWidth }}>
             <label style={styles.label}>Purpose</label>
             <textarea
@@ -218,7 +193,7 @@ export default function RegistrationForm({ onRegistered, onError }) {
 
         <div style={styles.actions}>
           <button type="submit" style={styles.primaryBtn}>
-            ⊕ Register Visitor
+            Submit
           </button>
         </div>
       </form>
