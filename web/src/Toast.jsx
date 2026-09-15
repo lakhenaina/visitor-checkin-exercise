@@ -15,7 +15,7 @@ export default function Toast({ open, type = "success", message, onClose, durati
     <div style={{ ...styles.wrap, background: bg }}>
       <span style={styles.text}>{message}</span>
       <button onClick={onClose} style={styles.closeBtn} aria-label="Close toast">
-        ×
+        x
       </button>
     </div>
   );
