@@ -1,19 +1,19 @@
 import { useState, useEffect } from "react";
 import { createVisitor, searchVisitors, getHosts } from "./api";
 
-export default function RegistrationForm({ onRegistered }) {
-  const [form, setForm] = useState({
-    full_name: "",
-    company_name: "",
-    host_id: "",
-    purpose: "",
-  });
+const initialForm = { full_name: "", company_name: "", host_id: "", purpose: "" };
 
+// Allows letters + spaces + optional apostrophe/dash.
+// If you want ONLY letters and spaces, remove ' and - from the regex.
+const FULL_NAME_REGEX = /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/;
+
+export default function RegistrationForm({ onRegistered }) {
+  const [form, setForm] = useState(initialForm);
   const [hosts, setHosts] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
 
-  // NEW: store validation errors (right now we only use full_name, but scalable)
-  const [errors, setErrors] = useState({ full_name: "" });
+  // New: store validation errors here
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
     getHosts().then((data) => {
@@ -21,60 +21,87 @@ export default function RegistrationForm({ onRegistered }) {
     });
   }, []);
 
-  // NEW: validation function for full name
-  function validateFullName(value) {
-    const trimmed = value.trim();
-
-    // required check (because field has *)
-    if (!trimmed) return "Full Name is required.";
-
-    // letters + spaces only
-    // This allows: "John", "John Doe", "Mary Jane"
-    // Disallows numbers and special chars
-    const nameRegex = /^[A-Za-z]+(?:\s+[A-Za-z]+)*$/;
-    if (!nameRegex.test(trimmed)) {
-      return "Only alphabets are allowed.";
+  // Validate a single field and return an error string (or "" if valid)
+  function validateField(name, value) {
+    if (name === "full_name") {
+      const v = value.trim();
+      if (!v) return "Full Name is required.";
+      if (!FULL_NAME_REGEX.test(v)) return "Full Name can contain only letters.";
+      if (v.length < 2) return "Full Name must be at least 2 characters.";
+      return "";
     }
 
-    return ""; // no error
+    if (name === "host_id") {
+      if (!value) return "Please select a host.";
+      return "";
+    }
+
+    return "";
+  }
+
+  // Validate entire form at once
+  function validateForm(nextForm) {
+    const nextErrors = {};
+    const fullNameError = validateField("full_name", nextForm.full_name);
+    const hostError = validateField("host_id", nextForm.host_id);
+
+    if (fullNameError) nextErrors.full_name = fullNameError;
+    if (hostError) nextErrors.host_id = hostError;
+
+    return nextErrors;
   }
 
   function handleChange(e) {
     const { name, value } = e.target;
 
-    // Keep existing behavior: update form state
-    setForm((f) => ({ ...f, [name]: value }));
+    setForm((f) => {
+      const next = { ...f, [name]: value };
+      return next;
+    });
 
-    // NEW: validate full_name on every change and show error message
+    // Update error message live for the field being edited
+    setErrors((prev) => ({
+      ...prev,
+      [name]: validateField(name, value),
+    }));
+
+    // Keep suggestions logic, but only search when full_name looks reasonable
     if (name === "full_name") {
-      const message = validateFullName(value);
-      setErrors((prev) => ({ ...prev, full_name: message }));
+      const trimmed = value.trim();
 
-      // UPDATED: only search if there is no validation error AND length >= 2
-      if (message === "" && value.trim().length >= 2) {
-        searchVisitors(value).then((data) => {
+      // If invalid characters are used, do not search and clear suggestions
+      if (trimmed.length >= 2 && FULL_NAME_REGEX.test(trimmed)) {
+        searchVisitors(trimmed).then((data) => {
           if (data) setSuggestions(data);
         });
       } else {
         setSuggestions([]);
       }
-
-      return; // exit early since we handled full_name logic
     }
+  }
 
-    // Keep your original non-full_name behavior (nothing else needed here)
+  // Show error when leaving the field (useful if user never types)
+  function handleBlur(e) {
+    const { name, value } = e.target;
+    setErrors((prev) => ({
+      ...prev,
+      [name]: validateField(name, value),
+    }));
   }
 
   function fillFromSuggestion(s) {
-    setForm((f) => ({
-      ...f,
-      full_name: s.full_name,
-      company_name: s.company_name || f.company_name,
-      host_id: s.host_id ? String(s.host_id) : f.host_id,
-    }));
+    setForm((f) => {
+      const next = {
+        ...f,
+        full_name: s.full_name,
+        company_name: s.company_name || f.company_name,
+        host_id: s.host_id ? String(s.host_id) : f.host_id,
+      };
 
-    // NEW: re-validate when we auto-fill the name
-    setErrors((prev) => ({ ...prev, full_name: validateFullName(s.full_name) }));
+      // Re-validate after auto-filling
+      setErrors(validateForm(next));
+      return next;
+    });
 
     setSuggestions([]);
   }
@@ -82,28 +109,31 @@ export default function RegistrationForm({ onRegistered }) {
   async function handleSubmit(e) {
     e.preventDefault();
 
-    // NEW: validate before submitting
-    const fullNameError = validateFullName(form.full_name);
-    if (fullNameError) {
-      setErrors((prev) => ({ ...prev, full_name: fullNameError }));
-      return; // stop submission
+    // Final validation gate before submitting
+    const nextErrors = validateForm(form);
+    setErrors(nextErrors);
+
+    if (Object.keys(nextErrors).length > 0) {
+      // Optional: move focus to first invalid field
+      const firstField = Object.keys(nextErrors)[0];
+      const el = document.querySelector(`[name="${firstField}"]`);
+      if (el) el.focus();
+      return; // Stop submit
     }
 
     await createVisitor({ ...form, host_id: form.host_id || null });
 
-    setForm({ full_name: "", company_name: "", host_id: "", purpose: "" });
+    setForm(initialForm);
     setSuggestions([]);
-
-    // NEW: clear errors when resetting
-    setErrors({ full_name: "" });
-
+    setErrors({});
     onRegistered();
   }
 
   return (
     <div style={{ marginBottom: "24px" }}>
       <h2>Register Visitor</h2>
-      <form onSubmit={handleSubmit}>
+
+      <form onSubmit={handleSubmit} noValidate>
         <div style={{ position: "relative", marginBottom: "8px" }}>
           <label>
             Full Name *<br />
@@ -111,25 +141,16 @@ export default function RegistrationForm({ onRegistered }) {
               name="full_name"
               value={form.full_name}
               onChange={handleChange}
+              onBlur={handleBlur}
               required
               autoComplete="off"
-              style={{
-                width: "260px",
-                // NEW: red border when invalid
-                border: errors.full_name ? "1px solid red" : "1px solid #ccc",
-              }}
-              // NEW: helps browser/assistive tech understand it is invalid
-              aria-invalid={Boolean(errors.full_name)}
-              aria-describedby="full-name-error"
+              style={{ width: "260px", borderColor: errors.full_name ? "red" : "#ccc" }}
             />
           </label>
 
-          {/* NEW: error message shown under input */}
+          {/* New: inline error message */}
           {errors.full_name && (
-            <div
-              id="full-name-error"
-              style={{ color: "red", fontSize: "12px", marginTop: "4px" }}
-            >
+            <div style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
               {errors.full_name}
             </div>
           )}
@@ -156,6 +177,7 @@ export default function RegistrationForm({ onRegistered }) {
               name="company_name"
               value={form.company_name}
               onChange={handleChange}
+              onBlur={handleBlur}
               style={{ width: "260px" }}
             />
           </label>
@@ -168,8 +190,9 @@ export default function RegistrationForm({ onRegistered }) {
               name="host_id"
               value={form.host_id}
               onChange={handleChange}
+              onBlur={handleBlur}
               required
-              style={{ width: "268px" }}
+              style={{ width: "268px", borderColor: errors.host_id ? "red" : "#ccc" }}
             >
               <option value="">Select host…</option>
               {hosts.map((h) => (
@@ -179,6 +202,13 @@ export default function RegistrationForm({ onRegistered }) {
               ))}
             </select>
           </label>
+
+          {/* New: inline error message */}
+          {errors.host_id && (
+            <div style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
+              {errors.host_id}
+            </div>
+          )}
         </div>
 
         <div style={{ marginBottom: "8px" }}>
@@ -188,16 +218,14 @@ export default function RegistrationForm({ onRegistered }) {
               name="purpose"
               value={form.purpose}
               onChange={handleChange}
+              onBlur={handleBlur}
               rows={3}
               style={{ width: "260px" }}
             />
           </label>
         </div>
 
-        {/* Optional: disable submit if name invalid */}
-        <button type="submit" disabled={Boolean(errors.full_name)}>
-          Submit
-        </button>
+        <button type="submit">Submit</button>
       </form>
     </div>
   );
