@@ -1,3 +1,5 @@
+# Defect Report - Naina Lakhe
+
 ## Defect #1 – Field Validation
 
 **Summary:** Full Name field accepts numbers and special characters  
@@ -122,3 +124,43 @@ If there are 0 matching visitors, the UI should display a clear empty state, e.g
 
 ### Actual Result
 The list/table appears empty with no explanatory message or action (no “No visitors found” empty state).
+
+## Defect #7 — Autocomplete Dropdown Does Not Close on Outside Click
+
+**Summary:** Full Name suggestions dropdown remains visible after clicking outside  
+**Type:** Usability / UI
+
+### Description
+When the user types into the **Full Name** field, an autocomplete suggestions dropdown appears. If the user clicks outside the input/dropdown (e.g., clicks on **Company**, **Host**, **Purpose**, or any blank area), the dropdown remains open instead of closing. This can overlap other inputs and makes the UI feel stuck.
+
+### Steps to Reproduce
+1. Navigate to the **Register a Visitor** form.
+2. Click the **Full Name** field.
+3. Type at least 2 letters (e.g., `Naina`) so the suggestions dropdown appears.
+4. Click outside the dropdown/input (e.g., click the **Company** field).
+
+### Expected Result
+The suggestions dropdown should close when:
+- the input loses focus, or
+- the user clicks outside the input/dropdown area.
+
+### Actual Result
+The suggestions dropdown stays open until the user selects a suggestion or clears/edits the input, even after clicking elsewhere.
+
+## Defect #8 — Error messages are not shown when the server (API) fails
+
+**Type:** Usability / Functional
+
+### Description 
+When the frontend (the user interface) fails to connect to the backend (Rails server), nothing happens on the screen. The user receives no warning or explanation. The system fails silently, leaving the user confused about whether their action worked or not.
+
+### Steps to Reproduce
+1. Start the frontend without the Rails API, or make the API unavailable.
+2. Open the visitor application.
+3. Attempt to load visitors or register a visitor.
+
+### Expected Result
+A clear, friendly error message should appear on the screen (for example: "Unable to connect to the server. Please check your connection and try again.").
+
+### Actual Result
+Nothing happens, the table stays empty. The error only appears in the hidden developer console.
