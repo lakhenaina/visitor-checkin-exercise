@@ -22,7 +22,7 @@ function avatarColor(index) {
   return AVATAR_COLORS[index % AVATAR_COLORS.length];
 }
 
-export default function VisitorList({ onRefresh }) {
+export default function VisitorList({ onRefresh, onToast }) {
   const [visitors, setVisitors] = useState([]);
   const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
@@ -51,10 +51,22 @@ export default function VisitorList({ onRefresh }) {
       });
   }, [page, onRefresh]);
 
-  function handleCheckOut(id) {
-    setVisitors((prev) => prev.filter((v) => v.id !== id));
-    checkOut(id);
+async function handleCheckOut(id) {
+  // find visitor name for a nicer toast message
+  const visitor = visitors.find((v) => v.id === id);
+
+  // optimistic UI (keep your existing behavior)
+  setVisitors((prev) => prev.filter((v) => v.id !== id));
+
+  try {
+    await checkOut(id);
+    onToast?.("success", `Checked out: ${visitor?.full_name || "Visitor"}`);
+  } catch (e) {
+    // rollback UI if checkout failed
+    setVisitors((prev) => (visitor ? [visitor, ...prev] : prev));
+    onToast?.("error", "Check out failed. Please try again.");
   }
+}
 
   // ✅ NEW: filtered list (search works on current page data only)
   const filteredVisitors = useMemo(() => {

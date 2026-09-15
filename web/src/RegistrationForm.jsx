@@ -6,7 +6,7 @@ const initialForm = { full_name: "", company_name: "", host_id: "", purpose: "" 
 // Allows letters + spaces + optional apostrophe/dash.
 const FULL_NAME_REGEX = /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/;
 
-export default function RegistrationForm({ onRegistered }) {
+export default function RegistrationForm({ onRegistered, onError }) {
   const [form, setForm] = useState(initialForm);
   const [hosts, setHosts] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
@@ -96,26 +96,31 @@ export default function RegistrationForm({ onRegistered }) {
     setSuggestions([]);
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault();
+ async function handleSubmit(e) {
+  e.preventDefault();
 
-    const nextErrors = validateForm(form);
-    setErrors(nextErrors);
+  const nextErrors = validateForm(form);
+  setErrors(nextErrors);
 
-    if (Object.keys(nextErrors).length > 0) {
-      const firstField = Object.keys(nextErrors)[0];
-      const el = document.querySelector(`[name="${firstField}"]`);
-      if (el) el.focus();
-      return;
-    }
+  if (Object.keys(nextErrors).length > 0) {
+    const firstField = Object.keys(nextErrors)[0];
+    const el = document.querySelector(`[name="${firstField}"]`);
+    if (el) el.focus();
+    return;
+  }
 
+  try {
     await createVisitor({ ...form, host_id: form.host_id || null });
 
     setForm(initialForm);
     setSuggestions([]);
     setErrors({});
     onRegistered();
+  } catch (err) {
+    // ✅ show error toast if API fails
+    onError?.("Registration failed. Please try again.");
   }
+}
 
   /* ---------- UI ONLY BELOW ---------- */
 
