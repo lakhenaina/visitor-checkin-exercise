@@ -4,15 +4,12 @@ import { createVisitor, searchVisitors, getHosts } from "./api";
 const initialForm = { full_name: "", company_name: "", host_id: "", purpose: "" };
 
 // Allows letters + spaces + optional apostrophe/dash.
-// If you want ONLY letters and spaces, remove ' and - from the regex.
 const FULL_NAME_REGEX = /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/;
 
 export default function RegistrationForm({ onRegistered }) {
   const [form, setForm] = useState(initialForm);
   const [hosts, setHosts] = useState([]);
   const [suggestions, setSuggestions] = useState([]);
-
-  // New: store validation errors here
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
@@ -21,7 +18,6 @@ export default function RegistrationForm({ onRegistered }) {
     });
   }, []);
 
-  // Validate a single field and return an error string (or "" if valid)
   function validateField(name, value) {
     if (name === "full_name") {
       const v = value.trim();
@@ -39,7 +35,6 @@ export default function RegistrationForm({ onRegistered }) {
     return "";
   }
 
-  // Validate entire form at once
   function validateForm(nextForm) {
     const nextErrors = {};
     const fullNameError = validateField("full_name", nextForm.full_name);
@@ -59,17 +54,14 @@ export default function RegistrationForm({ onRegistered }) {
       return next;
     });
 
-    // Update error message live for the field being edited
     setErrors((prev) => ({
       ...prev,
       [name]: validateField(name, value),
     }));
 
-    // Keep suggestions logic, but only search when full_name looks reasonable
     if (name === "full_name") {
       const trimmed = value.trim();
 
-      // If invalid characters are used, do not search and clear suggestions
       if (trimmed.length >= 2 && FULL_NAME_REGEX.test(trimmed)) {
         searchVisitors(trimmed).then((data) => {
           if (data) setSuggestions(data);
@@ -80,7 +72,6 @@ export default function RegistrationForm({ onRegistered }) {
     }
   }
 
-  // Show error when leaving the field (useful if user never types)
   function handleBlur(e) {
     const { name, value } = e.target;
     setErrors((prev) => ({
@@ -98,7 +89,6 @@ export default function RegistrationForm({ onRegistered }) {
         host_id: s.host_id ? String(s.host_id) : f.host_id,
       };
 
-      // Re-validate after auto-filling
       setErrors(validateForm(next));
       return next;
     });
@@ -109,16 +99,14 @@ export default function RegistrationForm({ onRegistered }) {
   async function handleSubmit(e) {
     e.preventDefault();
 
-    // Final validation gate before submitting
     const nextErrors = validateForm(form);
     setErrors(nextErrors);
 
     if (Object.keys(nextErrors).length > 0) {
-      // Optional: move focus to first invalid field
       const firstField = Object.keys(nextErrors)[0];
       const el = document.querySelector(`[name="${firstField}"]`);
       if (el) el.focus();
-      return; // Stop submit
+      return;
     }
 
     await createVisitor({ ...form, host_id: form.host_id || null });
@@ -129,14 +117,22 @@ export default function RegistrationForm({ onRegistered }) {
     onRegistered();
   }
 
+  /* ---------- UI ONLY BELOW ---------- */
+
   return (
-    <div style={{ marginBottom: "24px" }}>
-      <h2>Register Visitor</h2>
+    <div style={styles.card} id="register">
+      <div style={styles.cardHead}>
+        <span>👤</span>
+        <h3 style={styles.cardTitle}>Register a Visitor</h3>
+      </div>
 
       <form onSubmit={handleSubmit} noValidate>
-        <div style={{ position: "relative", marginBottom: "8px" }}>
-          <label>
-            Full Name *<br />
+        <div style={styles.grid}>
+          {/* Full Name */}
+          <div style={styles.field}>
+            <label style={styles.label}>
+              Full Name <span style={styles.req}>*</span>
+            </label>
             <input
               name="full_name"
               value={form.full_name}
@@ -144,55 +140,51 @@ export default function RegistrationForm({ onRegistered }) {
               onBlur={handleBlur}
               required
               autoComplete="off"
-              style={{ width: "260px", borderColor: errors.full_name ? "red" : "#ccc" }}
+              placeholder="Enter visitor's full name"
+              style={styles.input(!!errors.full_name)}
             />
-          </label>
+            {errors.full_name && <div style={styles.errorText}>{errors.full_name}</div>}
 
-          {/* New: inline error message */}
-          {errors.full_name && (
-            <div style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
-              {errors.full_name}
-            </div>
-          )}
+            {suggestions.length > 0 && (
+              <ul style={styles.dropdown}>
+                {suggestions.map((s) => (
+                  <li
+                    key={s.id}
+                    style={styles.dropdownItem}
+                    onClick={() => fillFromSuggestion(s)}
+                  >
+                    {s.full_name} — {s.company_name}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
 
-          {suggestions.length > 0 && (
-            <ul style={dropdownStyle}>
-              {suggestions.map((s) => (
-                <li
-                  key={s.id}
-                  style={{ padding: "6px 8px", cursor: "pointer" }}
-                  onClick={() => fillFromSuggestion(s)}
-                >
-                  {s.full_name} — {s.company_name}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div style={{ marginBottom: "8px" }}>
-          <label>
-            Company<br />
+          {/* Company */}
+          <div style={styles.field}>
+            <label style={styles.label}>Company</label>
             <input
               name="company_name"
               value={form.company_name}
               onChange={handleChange}
               onBlur={handleBlur}
-              style={{ width: "260px" }}
+              placeholder="Enter company name"
+              style={styles.input(false)}
             />
-          </label>
-        </div>
+          </div>
 
-        <div style={{ marginBottom: "8px" }}>
-          <label>
-            Host *<br />
+          {/* Host */}
+          <div style={styles.field}>
+            <label style={styles.label}>
+              Host <span style={styles.req}>*</span>
+            </label>
             <select
               name="host_id"
               value={form.host_id}
               onChange={handleChange}
               onBlur={handleBlur}
               required
-              style={{ width: "268px", borderColor: errors.host_id ? "red" : "#ccc" }}
+              style={styles.input(!!errors.host_id)}
             >
               <option value="">Select host…</option>
               {hosts.map((h) => (
@@ -201,45 +193,91 @@ export default function RegistrationForm({ onRegistered }) {
                 </option>
               ))}
             </select>
-          </label>
+            {errors.host_id && <div style={styles.errorText}>{errors.host_id}</div>}
+          </div>
 
-          {/* New: inline error message */}
-          {errors.host_id && (
-            <div style={{ color: "red", fontSize: "12px", marginTop: "4px" }}>
-              {errors.host_id}
-            </div>
-          )}
-        </div>
-
-        <div style={{ marginBottom: "8px" }}>
-          <label>
-            Purpose<br />
+          {/* Purpose (full width, like "Additional Note" in the design) */}
+          <div style={{ ...styles.field, ...styles.fullWidth }}>
+            <label style={styles.label}>Purpose</label>
             <textarea
               name="purpose"
               value={form.purpose}
               onChange={handleChange}
               onBlur={handleBlur}
               rows={3}
-              style={{ width: "260px" }}
+              placeholder="Purpose of visit…"
+              style={{ ...styles.input(false), resize: "vertical" }}
             />
-          </label>
+          </div>
         </div>
 
-        <button type="submit">Submit</button>
+        <div style={styles.actions}>
+          <button type="submit" style={styles.primaryBtn}>
+            ⊕ Register Visitor
+          </button>
+        </div>
       </form>
     </div>
   );
 }
 
-const dropdownStyle = {
-  position: "absolute",
-  top: "100%",
-  left: 0,
-  background: "#fff",
-  border: "1px solid #ccc",
-  listStyle: "none",
-  margin: 0,
-  padding: 0,
-  width: "260px",
-  zIndex: 10,
+const styles = {
+  card: {
+    background: "#fff",
+    borderRadius: "10px",
+    boxShadow: "0 1px 3px rgba(16,24,40,0.08)",
+    padding: "20px 22px",
+    marginBottom: "24px",
+  },
+  cardHead: { display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" },
+  cardTitle: { margin: 0, fontSize: "15px", fontWeight: 600, color: "#111827" },
+  grid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 20px" },
+  field: { position: "relative" },
+  fullWidth: { gridColumn: "1 / -1" },
+  label: { display: "block", fontSize: "13px", fontWeight: 500, color: "#374151", marginBottom: "6px" },
+  req: { color: "#ef4444" },
+  input: (hasError) => ({
+    width: "100%",
+    padding: "9px 12px",
+    fontSize: "14px",
+    borderRadius: "6px",
+    border: `1px solid ${hasError ? "#ef4444" : "#d1d5db"}`,
+    outline: "none",
+    boxSizing: "border-box",
+    background: "#fff",
+    color: "#111827",
+    fontFamily: "inherit",
+  }),
+  errorText: { color: "#ef4444", fontSize: "12px", marginTop: "4px" },
+  actions: { display: "flex", justifyContent: "flex-end", marginTop: "18px" },
+  primaryBtn: {
+    background: "#2563eb",
+    color: "#fff",
+    border: "none",
+    borderRadius: "6px",
+    padding: "9px 18px",
+    fontSize: "14px",
+    fontWeight: 500,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+  },
+  dropdown: {
+    position: "absolute",
+    top: "100%",
+    left: 0,
+    right: 0,
+    background: "#fff",
+    border: "1px solid #e5e7eb",
+    borderRadius: "6px",
+    boxShadow: "0 8px 20px rgba(16,24,40,0.12)",
+    listStyle: "none",
+    margin: "4px 0 0",
+    padding: "4px",
+    zIndex: 10,
+    maxHeight: "220px",
+    overflowY: "auto",
+  },
+  dropdownItem: { padding: "8px 10px", cursor: "pointer", borderRadius: "4px", fontSize: "14px" },
 };
